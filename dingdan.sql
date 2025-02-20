@@ -1,0 +1,19 @@
+CREATE DATABASE IF NOT EXISTS dingdan
+DEFAULT CHARACTER SET utf8mb4
+DEFAULT COLLATE utf8mb4_general_ci;
+
+USE dingdan;
+
+CREATE TABLE IF NOT EXISTS `orders` (
+    `order_id` VARCHAR(36) NOT NULL,
+    `user_id` VARCHAR(36) NOT NULL,
+    `address` TEXT NOT NULL,
+    `email` VARCHAR(255) NOT NULL,
+    `order_items` TEXT NOT NULL,
+    `currency` VARCHAR(10) NOT NULL,
+    `status` VARCHAR(20) NOT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `expire_at` TIMESTAMP NOT NULL,
+    PRIMARY KEY (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
