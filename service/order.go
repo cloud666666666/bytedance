@@ -62,6 +62,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *PlaceOrderReq) (*Or
 	fmt.Printf("地址JSON: %s\n", string(addressBytes))
 	fmt.Printf("订单项JSON: %s\n", string(orderItemsBytes))
 
+	now := time.Now()
 	order := &model.Order{
 		OrderID:    orderID,
 		UserID:     req.UserID,
@@ -70,8 +71,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *PlaceOrderReq) (*Or
 		Email:      req.Email,
 		OrderItems: string(orderItemsBytes),
 		Status:     "pending",
-		CreatedAt:  time.Now(),
-		ExpireAt:   time.Now().Add(30 * time.Minute),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		ExpireAt:   now.Add(1 * time.Minute),
 	}
 
 	// 打印最终要存储的订单数据
@@ -129,12 +131,16 @@ func (s *OrderService) UpdateOrder(ctx context.Context, orderID string, updates 
 	if currency, ok := updates["currency"].(string); ok {
 		cleanUpdates["currency"] = currency
 	}
+	// 添加 user_id 的处理
+	if userID, ok := updates["user_id"].(string); ok {
+		cleanUpdates["user_id"] = userID
+	}
 
 	// 更新 updated_at 字段
 	cleanUpdates["updated_at"] = time.Now()
 
 	result := s.db.Model(&model.Order{}).
-		Where("order_id = ? AND status = ?", orderID, "pending").
+		Where("order_id = ?", orderID).
 		Updates(cleanUpdates)
 
 	if result.Error != nil {
@@ -185,4 +191,50 @@ func (s *OrderService) GetOrder(ctx context.Context, orderID string) (*model.Ord
 	}
 
 	return &order, nil
+}
+
+func (s *OrderService) StartOrderExpirationChecker() {
+	ticker := time.NewTicker(1 * time.Minute) // 每1分钟检查一次
+	defer ticker.Stop()
+
+	for range ticker.C {
+		s.checkAndCancelExpiredOrders()
+	}
+}
+
+func (s *OrderService) checkAndCancelExpiredOrders() {
+	now := time.Now()
+	fmt.Printf("开始检查过期订单，当前时间: %v\n", now)
+
+	// 先查询符合条件的订单数量
+	var count int64
+	if err := s.db.Model(&model.Order{}).
+		Where("status = ? AND expire_at <= ?", "pending", now).
+		Count(&count).Error; err != nil {
+		fmt.Printf("查询过期订单数量失败: %v\n", err)
+		return
+	}
+	fmt.Printf("找到 %d 个需要取消的过期订单\n", count)
+
+	// 开始事务
+	tx := s.db.Begin()
+
+	// 执行更新
+	result := tx.Model(&model.Order{}).
+		Where("status = ? AND expire_at <= ?", "pending", now).
+		Update("status", "cancelled")
+
+	if result.Error != nil {
+		tx.Rollback()
+		fmt.Printf("批量取消过期订单失败: %v\n", result.Error)
+		return
+	}
+
+	fmt.Printf("成功更新 %d 个订单状态\n", result.RowsAffected)
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		fmt.Printf("提交事务失败: %v\n", err)
+		return
+	}
 }

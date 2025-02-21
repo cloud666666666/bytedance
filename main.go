@@ -31,6 +31,9 @@ func main() {
 	// 初始化订单服务
 	orderService := service.NewOrderService(db)
 
+	// 启动订单过期检查任务
+	go orderService.StartOrderExpirationChecker()
+
 	// server.Default() creates a Hertz with recovery middleware.
 	// If you need a pure hertz, you can use server.New()
 	h := server.Default()
