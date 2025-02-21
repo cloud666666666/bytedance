@@ -16,10 +16,10 @@ type OrderService struct {
 }
 
 type PlaceOrderReq struct {
-	UserID       string                 `json:"user_id"`
-	UserCurrency string                 `json:"user_currency"`
-	Address      map[string]interface{} `json:"address"`
-	Email        string                 `json:"email"`
+	UserID       string                   `json:"user_id"`
+	UserCurrency string                   `json:"user_currency"`
+	Address      map[string]interface{}   `json:"address"`
+	Email        string                   `json:"email"`
 	OrderItems   []map[string]interface{} `json:"order_items"`
 }
 
@@ -99,29 +99,43 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *PlaceOrderReq) (*Or
 
 // 修改订单信息
 func (s *OrderService) UpdateOrder(ctx context.Context, orderID string, updates map[string]interface{}) error {
+	// 创建一个新的更新map
+	cleanUpdates := make(map[string]interface{})
+
 	// 检查并处理特殊字段
 	if address, ok := updates["address"].(map[string]interface{}); ok {
 		addressBytes, err := json.Marshal(address)
 		if err != nil {
 			return fmt.Errorf("序列化地址失败: %v", err)
 		}
-		updates["address"] = string(addressBytes)
+		cleanUpdates["address"] = string(addressBytes)
 	}
 
-	if orderItems, ok := updates["order_items"].(map[string]interface{}); ok {
+	if orderItems, ok := updates["order_items"].([]interface{}); ok {
 		orderItemsBytes, err := json.Marshal(orderItems)
 		if err != nil {
 			return fmt.Errorf("序列化订单项失败: %v", err)
 		}
-		updates["order_items"] = string(orderItemsBytes)
+		cleanUpdates["order_items"] = string(orderItemsBytes)
+	}
+
+	// 处理其他简单字段
+	if status, ok := updates["status"].(string); ok {
+		cleanUpdates["status"] = status
+	}
+	if email, ok := updates["email"].(string); ok {
+		cleanUpdates["email"] = email
+	}
+	if currency, ok := updates["currency"].(string); ok {
+		cleanUpdates["currency"] = currency
 	}
 
 	// 更新 updated_at 字段
-	updates["updated_at"] = time.Now()
+	cleanUpdates["updated_at"] = time.Now()
 
 	result := s.db.Model(&model.Order{}).
 		Where("order_id = ? AND status = ?", orderID, "pending").
-		Updates(updates)
+		Updates(cleanUpdates)
 
 	if result.Error != nil {
 		return fmt.Errorf("更新订单失败: %v", result.Error)

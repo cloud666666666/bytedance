@@ -44,7 +44,7 @@ func main() {
 		log.Printf("收到的请求体: %s", string(body))
 
 		// 添加更详细的绑定日志
-		if err := c.BindAndValidate(&req); err != nil {
+		if err := c.Bind(&req); err != nil {
 			log.Printf("绑定错误: %v", err)
 			log.Printf("请求结构体内容: %+v", req)
 			c.JSON(consts.StatusBadRequest, map[string]interface{}{
